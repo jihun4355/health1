@@ -4,12 +4,13 @@ import pandas as pd
 import os
 import json
 from datetime import datetime
-import matplotlib.pyplot as plt
 
+# 파일 경로
 WORKOUT_FILE = "workout_log.csv"
 BODY_FILE = "body_log.csv"
 MAX_WEIGHT_FILE = "max_weights.json"
 
+# 종목 목록
 EQUIPMENTS = [
     "인클라인 덤벨프레스", "인클라인 머신 프레스", "인클라인 덤벨 플라이", "디클라인 프레스",
     "딥스", "슈러그", "랫풀다운", "티바로우", "시티드 로우", "dy로우", "원암풀다운",
@@ -19,27 +20,45 @@ EQUIPMENTS = [
     "프리처컬", "케이블 푸시다운", "라잉 트라이셉스 익스텐션"
 ]
 
+st.set_page_config(page_title="🏋️ 헬스 일지", layout="wide")
+st.title("🏋️ 사용자별 헬스 일지 기록 시스템")
 
-st.set_page_config(page_title="🏋️‍♂️ 헬스 일지", layout="wide")
-st.title("🏋️‍♂️ 헬스 일지 기록 시스템")
+# 유저 ID 입력
+user_id = st.text_input("사용자 이름 또는 ID 입력", value="user")
+
+# 파일 로딩/저장 함수
+def get_user_filename(base_file):
+    name, ext = os.path.splitext(base_file)
+    return f"{user_id}_{name}{ext}"
 
 def load_df(file, columns):
-    if os.path.exists(file):
-        return pd.read_csv(file)
+    filename = get_user_filename(file)
+    if os.path.exists(filename):
+        return pd.read_csv(filename)
     return pd.DataFrame(columns=columns)
+
+def save_df(file, df):
+    filename = get_user_filename(file)
+    df.to_csv(filename, index=False, encoding='utf-8-sig')
 
 def save_row(file, row):
     df = load_df(file, list(row.keys()))
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    df.to_csv(file, index=False, encoding='utf-8-sig')
+    save_df(file, df)
 
 def load_max_weights():
     if os.path.exists(MAX_WEIGHT_FILE):
         with open(MAX_WEIGHT_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
+            return data.get(user_id, {})
     return {}
 
-def save_max_weights(data):
+def save_max_weights(new_data):
+    data = {}
+    if os.path.exists(MAX_WEIGHT_FILE):
+        with open(MAX_WEIGHT_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    data[user_id] = new_data
     with open(MAX_WEIGHT_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -96,6 +115,12 @@ with tab3:
     if not workout_df.empty:
         workout_df['날짜'] = pd.to_datetime(workout_df['날짜'])
         workout_df['총중량'] = workout_df['무게'] * workout_df['횟수'] * workout_df['세트']
+
+        with st.expander("📌 종목별 그래프"):
+            selected = st.selectbox("종목 선택", sorted(workout_df['종목'].unique()))
+            filtered = workout_df[workout_df['종목'] == selected].set_index('날짜')
+            st.line_chart(filtered['총중량'])
+
         st.line_chart(workout_df.set_index('날짜')["총중량"], height=250, use_container_width=True)
         st.line_chart(workout_df.set_index('날짜')["피로도"], height=250, use_container_width=True)
 
@@ -116,18 +141,24 @@ with tab4:
         st.metric(label="추천 중량 (kg)", value=f"{recommended}kg", delta=f"{ratio}% of {max_data[exercise]}kg")
 
 with tab5:
-    st.subheader("📖 전체 기록 보기")
+    st.subheader("📖 전체 기록 보기 및 삭제")
     df_workout = load_df(WORKOUT_FILE, ["날짜", "종목", "부위", "무게", "횟수", "세트", "피로도"])
     df_body = load_df(BODY_FILE, ["날짜", "키", "체중", "골격근량", "체지방률", "BMI"])
 
     if not df_workout.empty:
         st.markdown("### 🏋️ 운동 기록")
-        st.dataframe(df_workout.sort_values(by="날짜", ascending=False), use_container_width=True)
+        st.dataframe(df_workout, use_container_width=True)
+        delete_row = st.number_input("삭제할 운동 기록 인덱스 입력", min_value=0, max_value=len(df_workout)-1)
+        if st.button("선택한 운동 기록 삭제"):
+            df_workout.drop(index=delete_row, inplace=True)
+            df_workout.reset_index(drop=True, inplace=True)
+            save_df(WORKOUT_FILE, df_workout)
+            st.success("삭제 완료")
     else:
         st.info("운동 기록이 없습니다.")
 
     if not df_body.empty:
         st.markdown("### 📊 체성분 기록")
-        st.dataframe(df_body.sort_values(by="날짜", ascending=False), use_container_width=True)
+        st.dataframe(df_body, use_container_width=True)
     else:
         st.info("체성분 기록이 없습니다.")
