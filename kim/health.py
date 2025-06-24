@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 import pandas as pd
 import os
@@ -20,13 +21,13 @@ EQUIPMENTS = [
     "프리처컬", "케이블 푸시다운", "라잉 트라이셉스 익스텐션"
 ]
 
-st.set_page_config(page_title="🏋️ 헬스 일지", layout="wide")
-st.title("🏋️ 사용자별 헬스 일지 기록 시스템")
+st.set_page_config(page_title="🏋️️ 헬스 일지", layout="wide")
+st.title("🏋️️ 사용자별 헬스 일지 기록 시스템")
 
 # 유저 ID 입력
 user_id = st.text_input("사용자 이름 또는 ID 입력", value="user")
 
-# 파일 로딩/저장 함수
+# 파일 관리 함수
 def get_user_filename(base_file):
     name, ext = os.path.splitext(base_file)
     return f"{user_id}_{name}{ext}"
@@ -145,15 +146,24 @@ with tab5:
     df_workout = load_df(WORKOUT_FILE, ["날짜", "종목", "부위", "무게", "횟수", "세트", "피로도"])
     df_body = load_df(BODY_FILE, ["날짜", "키", "체중", "골격근량", "체지방률", "BMI"])
 
+    # 운동 기록 표시 및 삭제
     if not df_workout.empty:
         st.markdown("### 🏋️ 운동 기록")
-        st.dataframe(df_workout, use_container_width=True)
-        delete_row = st.number_input("삭제할 운동 기록 인덱스 입력", min_value=0, max_value=len(df_workout)-1)
-        if st.button("선택한 운동 기록 삭제"):
-            df_workout.drop(index=delete_row, inplace=True)
-            df_workout.reset_index(drop=True, inplace=True)
-            save_df(WORKOUT_FILE, df_workout)
-            st.success("삭제 완료")
+        for i in range(len(df_workout)):
+            row = df_workout.loc[i]
+            with st.container():
+                cols = st.columns([2, 2, 1, 1, 1, 1, 1, 0.5])
+                cols[0].markdown(f"📅 {row['날짜']}")
+                cols[1].markdown(f"🏋️‍♂️ {row['종목']}")
+                cols[2].markdown(f"부위: {row['부위']}")
+                cols[3].markdown(f"{row['무게']}kg")
+                cols[4].markdown(f"{row['횟수']}회")
+                cols[5].markdown(f"{row['세트']}세트")
+                cols[6].markdown(f"피로도: {row['피로도']}")
+                if cols[7].button("❌", key=f"del_{i}"):
+                    df_workout = df_workout.drop(index=i).reset_index(drop=True)
+                    save_df(WORKOUT_FILE, df_workout)
+                    st.rerun()
     else:
         st.info("운동 기록이 없습니다.")
 
