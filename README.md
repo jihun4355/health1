@@ -81,7 +81,7 @@ Streamlit이 자동으로 다음과 같은 URL을 열어줍니다:
 
 
 
-http://localhost:8501
+http://localhost:8501(기간만료)
 
 
 ---
